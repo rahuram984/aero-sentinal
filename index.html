@@ -1203,8 +1203,10 @@ function setFile(file) {
     const r = new FileReader();
     r.onload = e => {
         const previewImg = document.getElementById('pi');
+        previewImg.onload = () => {
+            currentSourceImageElement = previewImg;
+        };
         previewImg.src = e.target.result;
-        currentSourceImageElement = previewImg;
         document.getElementById('pf').textContent = file.name;
         document.getElementById('pv').classList.add('show');
     };
@@ -1235,15 +1237,28 @@ async function runSample(fn, card) {
         const effBackend = getEffectiveBackendUrl();
         const sampleUrl = `./static/samples/${fn}`;
         
-        // 1. Fetch sample image blob & preview
-        const resBlob = await fetch(sampleUrl);
-        const blob = await resBlob.blob();
+        // 1. Load image into a dedicated element first (sets naturalWidth/Height)
+        const srcImgEl = new Image();
+        srcImgEl.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+            srcImgEl.onload = resolve;
+            srcImgEl.onerror = reject;
+            srcImgEl.src = sampleUrl;
+        });
+        currentSourceImageElement = srcImgEl;
+
+        // 2. Also set in file preview
+        const blob = await fetch(sampleUrl).then(r => r.blob());
         const sampleFile = new File([blob], fn, { type: 'image/jpeg' });
-        setFile(sampleFile);
+        sel = sampleFile;
+        const previewImg = document.getElementById('pi');
+        previewImg.src = sampleUrl;
+        document.getElementById('pf').textContent = fn;
+        document.getElementById('pv').classList.add('show');
 
         let d = null;
 
-        // 2. Try remote/local backend if active
+        // 3. Try remote/local backend if active
         if (effBackend) {
             try {
                 const fd = new FormData();
@@ -1255,7 +1270,7 @@ async function runSample(fn, card) {
             }
         }
 
-        // 3. Exact Trained YOLOv11 Ground Truth Presets for the 6 demo samples
+        // 4. Exact Trained YOLOv11 Ground Truth Presets for the 6 demo samples
         if (!d || !d.success) {
             const preset = SAMPLE_PRESETS[fn];
             if (preset) {
@@ -1265,12 +1280,9 @@ async function runSample(fn, card) {
             }
         }
 
-        // 4. In-Browser YOLOv11 ONNX Inference
+        // 5. In-Browser YOLOv11 ONNX Inference as last resort
         if (!d || !d.success) {
-            const imgEl = new Image();
-            imgEl.src = sampleUrl;
-            await new Promise(r => { imgEl.onload = r; });
-            d = await runYoloInference(imgEl, fn);
+            d = await runYoloInference(srcImgEl, fn);
         }
 
         if (d && d.success) {
@@ -1464,10 +1476,36 @@ function render(d) {
 
     const imgEl = document.getElementById('oi');
     const eff = getEffectiveBackendUrl();
-    const resolvedImg = (d.output_image && d.output_image.startsWith('/') && eff) 
-        ? `${eff}${d.output_image}` 
-        : (d.output_image || '');
-    imgEl.src = resolvedImg;
+
+    // ─── Always render bounding boxes directly on canvas from source image ───
+    // This ensures boxes align correctly on both local backend and Vercel cloud
+    const drawOnCanvas = () => {
+        const srcImg = currentSourceImageElement;
+        if (srcImg && srcImg.complete && srcImg.naturalWidth > 0) {
+            const allDets = d.rawDetections || d.detections || [];
+            const annotated = renderDetectionsOnCanvas(srcImg, allDets, srcImg.naturalWidth, srcImg.naturalHeight);
+            imgEl.src = annotated;
+        } else if (d.output_image) {
+            // fallback: load the server-annotated image
+            const resolvedImg = (d.output_image.startsWith('/') && eff)
+                ? `${eff}${d.output_image}`
+                : d.output_image;
+            imgEl.src = resolvedImg;
+        }
+    };
+
+    // If source preview image is ready, draw immediately; otherwise wait for load
+    const srcImg = currentSourceImageElement;
+    if (srcImg && srcImg.complete && srcImg.naturalWidth > 0) {
+        drawOnCanvas();
+    } else if (srcImg) {
+        srcImg.onload = drawOnCanvas;
+    } else if (d.output_image) {
+        const resolvedImg = (d.output_image.startsWith('/') && eff)
+            ? `${eff}${d.output_image}`
+            : d.output_image;
+        imgEl.src = resolvedImg;
+    }
 
     document.getElementById('ots').textContent = new Date().toLocaleTimeString();
     document.getElementById('imeta').innerHTML =
