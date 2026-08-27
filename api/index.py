@@ -38,7 +38,8 @@ def home():
             return HTMLResponse(content=f.read())
     return HTMLResponse(content="<h1>Aero Sentinel AI is Live</h1>")
 
-# ─── Exact Pixel-Accurate YOLOv11 DetectionSAMPLE_PRESETS = {
+# ─── Exact Pixel-Accurate YOLOv11 Detections ───
+SAMPLE_PRESETS = {
     'defect_1.jpg': {
         "filename": 'defect_1.jpg',
         "total_objects": 2,
