@@ -2,12 +2,16 @@ import os
 import io
 import time
 import base64
+from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from PIL import Image, ImageDraw
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+INDEX_HTML = BASE_DIR / "index.html"
 
 app = FastAPI(title="Aero Sentinel Vercel Serverless API")
 
@@ -20,6 +24,13 @@ app.add_middleware(
 )
 
 START_TIME = time.time()
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    if INDEX_HTML.exists():
+        with open(INDEX_HTML, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Aero Sentinel AI is Live</h1>")
 
 # Default history records for cloud demonstration
 DEMO_HISTORY = [
