@@ -975,7 +975,7 @@ async function runSample(fn, card) {
 
         // 2. Send live request to YOLO backend
         let d = null;
-        const apiUrl = effBackend ? `${effBackend}/detect` : '/api/detect';
+        const apiUrl = effBackend ? `${effBackend}/detect` : '/detect';
         try {
             const fd = new FormData();
             fd.append('file', sampleFile);
@@ -1103,7 +1103,7 @@ async function runUpload() {
     try {
         let d = null;
         const effBackend = getEffectiveBackendUrl();
-        const apiUrl = effBackend ? `${effBackend}/detect` : '/api/detect';
+        const apiUrl = effBackend ? `${effBackend}/detect` : '/detect';
         
         try {
             const fd = new FormData();
