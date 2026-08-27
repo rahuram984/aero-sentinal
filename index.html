@@ -671,63 +671,65 @@ const SAMPLE_PRESETS = {
         filename: 'defect_1.jpg',
         total_objects: 2,
         defect_count: 1,
-        output_image: './static/output_20260818_144957.jpg',
+        output_image: './static/annotated_defect_1.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'defect (missing disc)', confidence: 0.87, bbox: [574, 755, 646, 843], severity: 'CRITICAL' },
-            { class: 'insulator', confidence: 0.91, bbox: [185, 658, 885, 885], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.907, bbox: [211, 574, 997, 745], severity: 'INFO' },
+            { class: 'defect (missing disc)', confidence: 0.467, bbox: [646, 659, 726, 711], severity: 'CRITICAL' }
         ]
     },
     'defect_2.jpg': {
         filename: 'defect_2.jpg',
         total_objects: 2,
         defect_count: 1,
-        output_image: './static/output_20260818_151505.jpg',
+        output_image: './static/annotated_defect_2.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'defect (broken disc)', confidence: 0.80, bbox: [545, 660, 615, 755], severity: 'CRITICAL' },
-            { class: 'insulator', confidence: 0.93, bbox: [180, 595, 840, 795], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.927, bbox: [208, 520, 968, 690], severity: 'INFO' },
+            { class: 'defect (broken disc)', confidence: 0.299, bbox: [630, 602, 706, 656], severity: 'CRITICAL' }
         ]
     },
     'defect_3.jpg': {
         filename: 'defect_3.jpg',
         total_objects: 2,
         defect_count: 1,
-        output_image: './static/output_20260818_154538.jpg',
+        output_image: './static/annotated_defect_3.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'defect (flashover / disc damage)', confidence: 0.89, bbox: [480, 410, 550, 490], severity: 'CRITICAL' },
-            { class: 'insulator', confidence: 0.91, bbox: [160, 280, 870, 610], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.920, bbox: [142, 344, 933, 552], severity: 'INFO' },
+            { class: 'defect (flashover damage)', confidence: 0.393, bbox: [227, 484, 305, 541], severity: 'CRITICAL' }
         ]
     },
     'normal_1.jpg': {
         filename: 'normal_1.jpg',
-        total_objects: 1,
+        total_objects: 3,
         defect_count: 0,
-        output_image: './static/output_20260811_154412.jpg',
-        severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
+        output_image: './static/annotated_normal_1.jpg',
+        severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 3 },
         detections: [
-            { class: 'insulator (healthy)', confidence: 0.96, bbox: [150, 450, 860, 780], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.820, bbox: [0, 455, 1006, 662], severity: 'INFO' },
+            { class: 'insulator', confidence: 0.512, bbox: [380, 365, 675, 437], severity: 'INFO' },
+            { class: 'insulator', confidence: 0.386, bbox: [805, 438, 957, 493], severity: 'INFO' }
         ]
     },
     'normal_2.jpg': {
         filename: 'normal_2.jpg',
         total_objects: 1,
         defect_count: 0,
-        output_image: './static/output_20260818_144941.jpg',
+        output_image: './static/annotated_normal_2.jpg',
         severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator (healthy)', confidence: 0.94, bbox: [180, 520, 850, 770], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.905, bbox: [218, 656, 709, 777], severity: 'INFO' }
         ]
     },
     'normal_3.jpg': {
         filename: 'normal_3.jpg',
         total_objects: 1,
         defect_count: 0,
-        output_image: './static/samples/normal_3.jpg',
+        output_image: './static/annotated_normal_3.jpg',
         severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator (healthy)', confidence: 0.95, bbox: [190, 480, 840, 740], severity: 'INFO' }
+            { class: 'insulator', confidence: 0.905, bbox: [218, 656, 709, 777], severity: 'INFO' }
         ]
     }
 };
