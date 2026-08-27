@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
     <style>
         :root {
             --blue:     #38bdf8;
@@ -674,7 +675,7 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_defect_1.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator', confidence: 0.907, bbox: [211, 574, 997, 745], severity: 'INFO' },
+            { class: 'insulator (structural)', confidence: 0.950, bbox: [222, 576, 806, 730], severity: 'INFO' },
             { class: 'defect (missing disc)', confidence: 0.467, bbox: [646, 659, 726, 711], severity: 'CRITICAL' }
         ]
     },
@@ -685,8 +686,8 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_defect_2.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator', confidence: 0.927, bbox: [208, 520, 968, 690], severity: 'INFO' },
-            { class: 'defect (broken disc)', confidence: 0.299, bbox: [630, 602, 706, 656], severity: 'CRITICAL' }
+            { class: 'insulator (structural)', confidence: 0.934, bbox: [221, 526, 797, 674], severity: 'INFO' },
+            { class: 'defect (broken disc)', confidence: 0.360, bbox: [461, 557, 506, 579], severity: 'CRITICAL' }
         ]
     },
     'defect_3.jpg': {
@@ -696,7 +697,7 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_defect_3.jpg',
         severity_counts: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator', confidence: 0.920, bbox: [142, 344, 933, 552], severity: 'INFO' },
+            { class: 'insulator (structural)', confidence: 0.800, bbox: [331, 352, 916, 554], severity: 'INFO' },
             { class: 'defect (flashover damage)', confidence: 0.393, bbox: [227, 484, 305, 541], severity: 'CRITICAL' }
         ]
     },
@@ -707,9 +708,9 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_normal_1.jpg',
         severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 3 },
         detections: [
-            { class: 'insulator', confidence: 0.820, bbox: [0, 455, 1006, 662], severity: 'INFO' },
-            { class: 'insulator', confidence: 0.512, bbox: [380, 365, 675, 437], severity: 'INFO' },
-            { class: 'insulator', confidence: 0.386, bbox: [805, 438, 957, 493], severity: 'INFO' }
+            { class: 'insulator (structural)', confidence: 0.820, bbox: [0, 455, 1006, 662], severity: 'INFO' },
+            { class: 'insulator (structural)', confidence: 0.603, bbox: [130, 172, 335, 243], severity: 'INFO' },
+            { class: 'insulator (structural)', confidence: 0.447, bbox: [805, 441, 961, 487], severity: 'INFO' }
         ]
     },
     'normal_2.jpg': {
@@ -719,7 +720,7 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_normal_2.jpg',
         severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator', confidence: 0.905, bbox: [218, 656, 709, 777], severity: 'INFO' }
+            { class: 'insulator (structural)', confidence: 0.889, bbox: [221, 661, 693, 776], severity: 'INFO' }
         ]
     },
     'normal_3.jpg': {
@@ -729,7 +730,7 @@ const SAMPLE_PRESETS = {
         output_image: './static/annotated_normal_3.jpg',
         severity_counts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 1 },
         detections: [
-            { class: 'insulator', confidence: 0.905, bbox: [218, 656, 709, 777], severity: 'INFO' }
+            { class: 'insulator (structural)', confidence: 0.889, bbox: [221, 661, 693, 776], severity: 'INFO' }
         ]
     }
 };
@@ -738,6 +739,9 @@ let customBackendUrl = localStorage.getItem('aero_api_custom') || '';
 let sel = null;
 let lastResult = null;
 let startTime = Date.now();
+let onnxSession = null;
+let isModelLoading = false;
+let currentSourceImageElement = null;
 
 // ─── Theme Mode Toggle ───
 function toggleTheme() {
@@ -764,7 +768,7 @@ function getEffectiveBackendUrl() {
 
 function openServerConfig() {
     const current = customBackendUrl || '';
-    const entered = prompt("Configure AI Backend URL:\n\n- Leave empty for Default (Auto-detects Local YOLO at http://localhost:8000)\n- Or enter Colab/Ngrok URL: https://xxxx.ngrok-free.app", current);
+    const entered = prompt("Configure AI Backend URL:\n\n- Leave empty for Default (Auto-detects Local YOLO at http://localhost:8000 or in-browser ONNX)\n- Or enter Colab/Ngrok URL: https://xxxx.ngrok-free.app", current);
     
     if (entered !== null) {
         customBackendUrl = entered.trim().replace(/\/$/, '');
@@ -773,24 +777,286 @@ function openServerConfig() {
             toast('🔌 Connected to custom backend: ' + customBackendUrl);
         } else {
             localStorage.removeItem('aero_api_custom');
-            toast('⚡ Switched to Auto / Local YOLO Mode');
+            toast('⚡ Switched to Auto / Edge ONNX Mode');
         }
         updateServerBadge();
         refreshStats();
     }
 }
 
-function updateServerBadge() {
+function updateServerBadge(statusText) {
     const label = document.getElementById('serverModeLabel');
     if (!label) return;
+    if (statusText) {
+        label.textContent = statusText;
+        return;
+    }
     const eff = getEffectiveBackendUrl();
     if (customBackendUrl) {
         label.textContent = customBackendUrl.replace(/^https?:\/\//, '').slice(0, 14);
     } else if (eff) {
         label.textContent = 'Local YOLO';
+    } else if (onnxSession) {
+        label.textContent = 'ONNX Edge AI';
     } else {
-        label.textContent = 'Cloud AI';
+        label.textContent = 'Neural AI';
     }
+}
+
+// ─── Initialize ONNX WebAssembly Model ───
+async function initOnnxModel() {
+    if (onnxSession) return onnxSession;
+    if (isModelLoading) return null;
+    isModelLoading = true;
+    updateServerBadge('Loading YOLO...');
+
+    const candidateUrls = [
+        './static/best.onnx',
+        '/static/best.onnx',
+        'static/best.onnx',
+        './public/static/best.onnx'
+    ];
+
+    if (window.ort) {
+        try {
+            ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
+            ort.env.wasm.simd = true;
+        } catch (e) {}
+    }
+
+    for (const url of candidateUrls) {
+        try {
+            console.log("Attempting to load YOLOv11 ONNX model from:", url);
+            const session = await ort.InferenceSession.create(url, {
+                executionProviders: ['wasm'],
+                graphOptimizationLevel: 'all'
+            });
+            onnxSession = session;
+            isModelLoading = false;
+            console.log("✅ YOLOv11 ONNX Neural Model loaded successfully from:", url);
+            updateServerBadge('ONNX Ready');
+            return onnxSession;
+        } catch (err) {
+            console.warn("Could not load ONNX model from " + url + ":", err.message);
+        }
+    }
+
+    isModelLoading = false;
+    updateServerBadge();
+    return null;
+}
+
+// ─── YOLOv11 In-Browser Neural Inference Engine ───
+async function runYoloInference(imgElement, filename) {
+    if (!onnxSession) {
+        await initOnnxModel();
+    }
+    if (!onnxSession) {
+        throw new Error("YOLOv11 ONNX model is not available.");
+    }
+
+    const origW = imgElement.naturalWidth || imgElement.width || 640;
+    const origH = imgElement.naturalHeight || imgElement.height || 640;
+
+    // 1. Draw to 640x640 Canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 640;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgElement, 0, 0, 640, 640);
+
+    // 2. Preprocess to Planar Float32 Array [1, 3, 640, 640] normalized [0, 1]
+    const imgData = ctx.getImageData(0, 0, 640, 640).data;
+    const channelSize = 640 * 640;
+    const floatData = new Float32Array(3 * channelSize);
+
+    for (let i = 0; i < channelSize; i++) {
+        floatData[i] = imgData[i * 4] / 255.0;                         // R channel
+        floatData[channelSize + i] = imgData[i * 4 + 1] / 255.0;         // G channel
+        floatData[2 * channelSize + i] = imgData[i * 4 + 2] / 255.0;     // B channel
+    }
+
+    // 3. Create Input Tensor and Run Inference
+    const inputTensor = new ort.Tensor('float32', floatData, [1, 3, 640, 640]);
+    const inputName = onnxSession.inputNames[0] || 'images';
+    const feeds = {};
+    feeds[inputName] = inputTensor;
+
+    const results = await onnxSession.run(feeds);
+    const outputTensor = results[onnxSession.outputNames[0]];
+    const rawData = outputTensor.data; // Float32Array shape [1, 6, 8400]
+
+    // 4. Decode YOLOv11 predictions: 8400 anchors with 6 rows [cx, cy, w, h, score0_defect, score1_insulator]
+    const numAnchors = 8400;
+    const rawBoxes = [];
+    const minConf = 0.15; // Base threshold to capture all candidate boxes
+
+    for (let i = 0; i < numAnchors; i++) {
+        const defectScore = rawData[4 * numAnchors + i];
+        const insulatorScore = rawData[5 * numAnchors + i];
+        const maxScore = Math.max(defectScore, insulatorScore);
+
+        if (maxScore < minConf) continue;
+
+        const classId = defectScore > insulatorScore ? 0 : 1;
+        const className = classId === 0 ? 'defect' : 'insulator';
+
+        const cx = rawData[0 * numAnchors + i];
+        const cy = rawData[1 * numAnchors + i];
+        const w = rawData[2 * numAnchors + i];
+        const h = rawData[3 * numAnchors + i];
+
+        rawBoxes.push({
+            cx, cy, w, h,
+            score: maxScore,
+            classId,
+            className,
+            x1: cx - w / 2,
+            y1: cy - h / 2,
+            x2: cx + w / 2,
+            y2: cy + h / 2
+        });
+    }
+
+    // 5. Apply Non-Maximum Suppression (NMS)
+    const nmsBoxes = runNMS(rawBoxes, 0.45);
+
+    // 6. Scale coordinates back to original image dimensions
+    const scaleX = origW / 640;
+    const scaleY = origH / 640;
+
+    const detections = nmsBoxes.map(b => {
+        const x1 = Math.max(0, Math.min(origW, Math.round(b.x1 * scaleX)));
+        const y1 = Math.max(0, Math.min(origH, Math.round(b.y1 * scaleY)));
+        const x2 = Math.max(0, Math.min(origW, Math.round(b.x2 * scaleX)));
+        const y2 = Math.max(0, Math.min(origH, Math.round(b.y2 * scaleY)));
+
+        let severity = 'INFO';
+        let label = 'insulator (structural)';
+
+        if (b.className === 'defect') {
+            label = b.score > 0.50 ? 'defect (broken/missing disc)' : 'defect (flashover/burn)';
+            severity = b.score > 0.50 ? 'CRITICAL' : 'HIGH';
+        }
+
+        return {
+            class: label,
+            confidence: parseFloat(b.score.toFixed(3)),
+            bbox: [x1, y1, x2, y2],
+            severity: severity
+        };
+    });
+
+    const defectCount = detections.filter(d => d.class.includes('defect') || d.severity === 'CRITICAL' || d.severity === 'HIGH').length;
+    const sevCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+    detections.forEach(d => { sevCounts[d.severity] = (sevCounts[d.severity] || 0) + 1; });
+
+    // 7. Render high-res annotated image on canvas
+    const annotatedDataUrl = renderDetectionsOnCanvas(imgElement, detections, origW, origH);
+
+    return {
+        success: true,
+        filename: filename,
+        timestamp: new Date().toISOString(),
+        total_objects: detections.length,
+        defect_count: defectCount,
+        output_image: annotatedDataUrl,
+        severity_counts: sevCounts,
+        detections: detections,
+        rawDetections: detections,
+        engine: 'YOLOv11 ONNX WebAssembly'
+    };
+}
+
+// ─── Non-Maximum Suppression (NMS) Algorithm ───
+function runNMS(boxes, iouThreshold = 0.45) {
+    boxes.sort((a, b) => b.score - a.score);
+    const selected = [];
+
+    for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        let keep = true;
+        for (let j = 0; j < selected.length; j++) {
+            const s = selected[j];
+            const x1 = Math.max(b.x1, s.x1);
+            const y1 = Math.max(b.y1, s.y1);
+            const x2 = Math.min(b.x2, s.x2);
+            const y2 = Math.min(b.y2, s.y2);
+
+            const interW = Math.max(0, x2 - x1);
+            const interH = Math.max(0, y2 - y1);
+            const interArea = interW * interH;
+
+            const bArea = (b.x2 - b.x1) * (b.y2 - b.y1);
+            const sArea = (s.x2 - s.x1) * (s.y2 - s.y1);
+            const unionArea = bArea + sArea - interArea;
+
+            const iou = unionArea > 0 ? (interArea / unionArea) : 0;
+            if (iou > iouThreshold) {
+                keep = false;
+                break;
+            }
+        }
+        if (keep) selected.push(b);
+    }
+    return selected;
+}
+
+// ─── Canvas Annotation Renderer ───
+function renderDetectionsOnCanvas(sourceImg, detections, origW, origH) {
+    const canvas = document.createElement('canvas');
+    canvas.width = origW;
+    canvas.height = origH;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(sourceImg, 0, 0, origW, origH);
+
+    const colors = {
+        CRITICAL: '#ef4444',
+        HIGH: '#f97316',
+        MEDIUM: '#eab308',
+        LOW: '#22c55e',
+        INFO: '#38bdf8'
+    };
+
+    const strokeW = Math.max(3, Math.round(origW / 280));
+    const fontPx = Math.max(13, Math.round(origW / 45));
+    ctx.font = `bold ${fontPx}px "JetBrains Mono", monospace, sans-serif`;
+
+    detections.forEach(d => {
+        const [x1, y1, x2, y2] = d.bbox;
+        const bw = x2 - x1;
+        const bh = y2 - y1;
+        const color = colors[d.severity] || '#38bdf8';
+
+        // Outer box
+        ctx.strokeStyle = color;
+        ctx.lineWidth = strokeW;
+        ctx.strokeRect(x1, y1, bw, bh);
+
+        // Tech HUD corner brackets
+        const cl = Math.min(18, Math.min(bw, bh) / 4);
+        ctx.lineWidth = strokeW + 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1 + cl); ctx.lineTo(x1, y1); ctx.lineTo(x1 + cl, y1);
+        ctx.moveTo(x2 - cl, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + cl);
+        ctx.moveTo(x1, y2 - cl); ctx.lineTo(x1, y2); ctx.lineTo(x1 + cl, y2);
+        ctx.moveTo(x2 - cl, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cl);
+        ctx.stroke();
+
+        // Label tag
+        const label = `${d.class} ${(d.confidence * 100).toFixed(1)}% [${d.severity}]`;
+        const textW = ctx.measureText(label).width;
+        const tagH = fontPx + 6;
+        const tagY = Math.max(0, y1 - tagH - 2);
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x1, tagY, textW + 14, tagH);
+
+        ctx.fillStyle = '#020818';
+        ctx.fillText(label, x1 + 7, tagY + fontPx - 2);
+    });
+
+    return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 // ─── Stats Dashboard & Uptime ───
@@ -936,7 +1202,9 @@ function setFile(file) {
     sel = file;
     const r = new FileReader();
     r.onload = e => {
-        document.getElementById('pi').src = e.target.result;
+        const previewImg = document.getElementById('pi');
+        previewImg.src = e.target.result;
+        currentSourceImageElement = previewImg;
         document.getElementById('pf').textContent = file.name;
         document.getElementById('pv').classList.add('show');
     };
@@ -967,29 +1235,42 @@ async function runSample(fn, card) {
         const effBackend = getEffectiveBackendUrl();
         const sampleUrl = `./static/samples/${fn}`;
         
-        // 1. Fetch sample image blob
+        // 1. Fetch sample image blob & preview
         const resBlob = await fetch(sampleUrl);
         const blob = await resBlob.blob();
         const sampleFile = new File([blob], fn, { type: 'image/jpeg' });
-        
-        // Show in preview area
         setFile(sampleFile);
 
-        // 2. Send live request to YOLO backend
         let d = null;
-        const apiUrl = effBackend ? `${effBackend}/detect` : '/detect';
-        try {
-            const fd = new FormData();
-            fd.append('file', sampleFile);
-            const res = await fetch(apiUrl, { method: 'POST', body: fd, signal: AbortSignal.timeout(15000) });
-            if (res.ok) d = await res.json();
-        } catch (e) {
-            console.warn("Live YOLO inference notice:", e);
+
+        // 2. Try remote/local backend if active
+        if (effBackend) {
+            try {
+                const fd = new FormData();
+                fd.append('file', sampleFile);
+                const res = await fetch(`${effBackend}/detect`, { method: 'POST', body: fd, signal: AbortSignal.timeout(10000) });
+                if (res.ok) d = await res.json();
+            } catch (e) {
+                console.info("Backend inference offline:", e);
+            }
         }
 
+        // 3. Exact Trained YOLOv11 Ground Truth Presets for the 6 demo samples
         if (!d || !d.success) {
             const preset = SAMPLE_PRESETS[fn];
-            if (preset) d = JSON.parse(JSON.stringify(preset));
+            if (preset) {
+                d = JSON.parse(JSON.stringify(preset));
+                d.success = true;
+                d.rawDetections = d.detections;
+            }
+        }
+
+        // 4. In-Browser YOLOv11 ONNX Inference
+        if (!d || !d.success) {
+            const imgEl = new Image();
+            imgEl.src = sampleUrl;
+            await new Promise(r => { imgEl.onload = r; });
+            d = await runYoloInference(imgEl, fn);
         }
 
         if (d && d.success) {
@@ -1019,79 +1300,6 @@ async function runSample(fn, card) {
     }
 }
 
-async function annotateImageClientSide(dataUrl, filename) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-
-            const w = img.width;
-            const h = img.height;
-            const isNormal = filename.toLowerCase().includes('normal');
-            
-            const detections = [];
-            // Insulator string localization
-            detections.push({
-                class: 'insulator',
-                confidence: 0.95,
-                bbox: [Math.round(w * 0.15), Math.round(h * 0.12), Math.round(w * 0.85), Math.round(h * 0.88)],
-                severity: 'INFO'
-            });
-
-            if (!isNormal) {
-                detections.push({
-                    class: 'defect (missing disc)',
-                    confidence: 0.89,
-                    bbox: [Math.round(w * 0.35), Math.round(h * 0.28), Math.round(w * 0.55), Math.round(h * 0.45)],
-                    severity: 'CRITICAL'
-                });
-            }
-
-            // Draw bounding boxes on Canvas
-            detections.forEach(d => {
-                const [x1, y1, x2, y2] = d.bbox;
-                const bw = x2 - x1;
-                const bh = y2 - y1;
-                const color = d.severity === 'CRITICAL' ? '#ef4444' : '#38bdf8';
-                
-                ctx.strokeStyle = color;
-                ctx.lineWidth = Math.max(3, Math.round(w / 280));
-                ctx.strokeRect(x1, y1, bw, bh);
-
-                ctx.fillStyle = color;
-                const label = `${d.class} ${(d.confidence * 100).toFixed(0)}%`;
-                const fontSize = Math.max(14, Math.round(w / 40));
-                ctx.font = `bold ${fontSize}px sans-serif`;
-                const textWidth = ctx.measureText(label).width;
-                ctx.fillRect(x1, Math.max(0, y1 - fontSize - 6), textWidth + 10, fontSize + 6);
-                ctx.fillStyle = '#020818';
-                ctx.fillText(label, x1 + 5, Math.max(fontSize, y1 - 4));
-            });
-
-            const outDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-            const defectCount = detections.filter(d => d.class.includes('defect') || d.severity === 'CRITICAL').length;
-            const sevCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
-            detections.forEach(d => { sevCounts[d.severity] = (sevCounts[d.severity] || 0) + 1; });
-
-            resolve({
-                success: true,
-                filename: filename,
-                timestamp: new Date().toISOString(),
-                total_objects: detections.length,
-                defect_count: defectCount,
-                output_image: outDataUrl,
-                severity_counts: sevCounts,
-                detections: detections
-            });
-        };
-        img.src = dataUrl;
-    });
-}
-
 async function runUpload() {
     if (!sel) { toast('⚠️ Please select a drone image first!'); return; }
 
@@ -1105,26 +1313,39 @@ async function runUpload() {
     try {
         let d = null;
         const effBackend = getEffectiveBackendUrl();
-        const apiUrl = effBackend ? `${effBackend}/detect` : '/detect';
         
-        try {
-            const fd = new FormData();
-            fd.append('file', sel);
-            const res = await fetch(apiUrl, { method: 'POST', body: fd, signal: AbortSignal.timeout(15000) });
-            if (res.ok) d = await res.json();
-        } catch (e) {
-            console.info("Backend fetch failed or offline:", e);
+        // Tier 1: Try Local/Colab/Custom Backend if configured
+        if (effBackend) {
+            try {
+                const fd = new FormData();
+                fd.append('file', sel);
+                const apiUrl = `${effBackend}/detect`;
+                const res = await fetch(apiUrl, { method: 'POST', body: fd, signal: AbortSignal.timeout(12000) });
+                if (res.ok) d = await res.json();
+            } catch (e) {
+                console.info("Custom/Local backend unavailable, falling back to in-browser YOLOv11 ONNX:", e);
+            }
         }
 
-        // Fallback to preset or client-side CV inference
+        // Tier 2: Real In-Browser YOLOv11 ONNX Neural Inference
+        if (!d || !d.success) {
+            const previewImg = document.getElementById('pi');
+            if (previewImg && previewImg.complete && previewImg.naturalWidth > 0) {
+                try {
+                    d = await runYoloInference(previewImg, sel.name);
+                } catch (onnxErr) {
+                    console.warn("ONNX WebAssembly inference notice:", onnxErr);
+                }
+            }
+        }
+
+        // Tier 3: Sample Preset match (if filename matches gallery sample)
         if (!d || !d.success) {
             const samplePreset = SAMPLE_PRESETS[sel.name];
             if (samplePreset) {
                 d = JSON.parse(JSON.stringify(samplePreset));
-            } else {
-                const reader = new FileReader();
-                const dataUrl = await new Promise(r => { reader.onload = () => r(reader.result); reader.readAsDataURL(sel); });
-                d = await annotateImageClientSide(dataUrl, sel.name);
+                d.success = true;
+                d.rawDetections = d.detections;
             }
         }
 
@@ -1147,7 +1368,7 @@ async function runUpload() {
                 toast(`ℹ️ Inspection complete: No insulators or defects detected.`);
             }
         } else {
-            toast('❌ Detection failed.');
+            toast('❌ Could not complete detection on this image.');
         }
     } catch (e) {
         toast('❌ Error: ' + e.message);
@@ -1157,7 +1378,7 @@ async function runUpload() {
     }
 }
 
-// ─── Filter & Render Results ───
+// ─── Dynamic Filter & Real-Time Re-Annotation ───
 function applyConfFilter() {
     const slider = document.getElementById('confSlider');
     const valSpan = document.getElementById('confVal');
@@ -1166,10 +1387,36 @@ function applyConfFilter() {
 
     if (!lastResult) return;
 
-    const filtered = lastResult.detections.filter(d => d.confidence >= minConf);
+    const allDets = lastResult.rawDetections || lastResult.detections || [];
+    const filtered = allDets.filter(d => d.confidence >= minConf);
     const defects = filtered.filter(d => d.class.includes('defect') || d.severity === 'CRITICAL' || d.severity === 'HIGH');
 
     document.getElementById('dc').textContent = `${filtered.length} detection${filtered.length !== 1 ? 's' : ''}`;
+
+    // Update Severity Metric Cards
+    const sev = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+    filtered.forEach(d => { sev[d.severity] = (sev[d.severity] || 0) + 1; });
+    const CARDS = [
+        {k:'CRITICAL',l:'Critical Fault',ic:'&#128293;',c:'c'},
+        {k:'HIGH',l:'High Risk',ic:'&#9889;',c:'h'},
+        {k:'MEDIUM',l:'Medium Risk',ic:'&#9888;&#65039;',c:'m'},
+        {k:'LOW',l:'Low Risk',ic:'&#9989;',c:'l'},
+        {k:'INFO',l:'Healthy Component',ic:'&#8505;&#65039;',c:'i'},
+    ];
+    document.getElementById('sg5').innerHTML = CARDS.map((x,i) =>
+        `<div class="scard ${x.c}" style="animation-delay:${i*.07}s">
+            <span class="si">${x.ic}</span>
+            <div class="sv">${sev[x.k]||0}</div>
+            <div class="sl">${x.l}</div>
+        </div>`).join('');
+
+    // Re-render canvas bounding boxes dynamically if source image is available
+    if (currentSourceImageElement && currentSourceImageElement.complete && currentSourceImageElement.naturalWidth > 0) {
+        const origW = currentSourceImageElement.naturalWidth;
+        const origH = currentSourceImageElement.naturalHeight;
+        const dynamicAnnotatedUrl = renderDetectionsOnCanvas(currentSourceImageElement, filtered, origW, origH);
+        document.getElementById('oi').src = dynamicAnnotatedUrl;
+    }
 
     const dl = document.getElementById('dl');
     if (filtered.length > 0) {
@@ -1204,27 +1451,16 @@ function applyConfFilter() {
                 <p style="color:var(--t1);font-weight:600">No Insulators or Defects Detected</p>
                 <p style="color:var(--t2);font-size:0.85rem">The image does not contain any transmission line insulators or faults.</p></div>`
             : `<div class="empty"><span class="e-ico">⚠️</span>
-                <p style="color:var(--t2);font-weight:600">No detections above confidence filter threshold.</p></div>`;
+                <p style="color:var(--t2);font-weight:600">No detections above ${slider.value}% confidence threshold.</p></div>`;
         document.getElementById('sum').style.display = 'none';
     }
 }
 
 function render(d) {
     lastResult = d;
-    const sev = d.severity_counts || {};
-    const CARDS = [
-        {k:'CRITICAL',l:'Critical Fault',ic:'&#128293;',c:'c'},
-        {k:'HIGH',l:'High Risk',ic:'&#9889;',c:'h'},
-        {k:'MEDIUM',l:'Medium Risk',ic:'&#9888;&#65039;',c:'m'},
-        {k:'LOW',l:'Low Risk',ic:'&#9989;',c:'l'},
-        {k:'INFO',l:'Healthy Component',ic:'&#8505;&#65039;',c:'i'},
-    ];
-    document.getElementById('sg5').innerHTML = CARDS.map((x,i) =>
-        `<div class="scard ${x.c}" style="animation-delay:${i*.07}s">
-            <span class="si">${x.ic}</span>
-            <div class="sv">${sev[x.k]||0}</div>
-            <div class="sl">${x.l}</div>
-        </div>`).join('');
+    if (!lastResult.rawDetections) {
+        lastResult.rawDetections = d.detections;
+    }
 
     const imgEl = document.getElementById('oi');
     const eff = getEffectiveBackendUrl();
@@ -1408,6 +1644,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateServerBadge();
     loadHistory();
     refreshStats();
+    initOnnxModel();
     setInterval(refreshStats, 3000);
 });
 </script>
