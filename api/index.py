@@ -10,8 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from PIL import Image, ImageDraw
 
+from fastapi.staticfiles import StaticFiles
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 INDEX_HTML = BASE_DIR / "index.html"
+STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Aero Sentinel Vercel Serverless API")
 
@@ -22,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 START_TIME = time.time()
 
