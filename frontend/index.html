@@ -1107,10 +1107,40 @@ function getLocalHistory() {
 }
 
 function saveLocalHistory(item) {
-    const list = getLocalHistory();
-    list.unshift(item);
-    if (list.length > 20) list.pop();
-    localStorage.setItem('aero_history', JSON.stringify(list));
+    try {
+        // Strip the large base64 output_image before storing — only keep metadata
+        const slim = {
+            filename:      item.filename,
+            timestamp:     item.timestamp,
+            total_objects: item.total_objects,
+            defect_count:  item.defect_count,
+            severity_counts: item.severity_counts,
+            detections:    item.detections,
+            // Use sample path as thumbnail if available, strip any base64 data URLs
+            output_image: (item.output_image && item.output_image.startsWith('data:'))
+                ? `./static/samples/${item.filename}`
+                : (item.output_image || `./static/samples/${item.filename}`)
+        };
+        const list = getLocalHistory();
+        list.unshift(slim);
+        if (list.length > 10) list.pop();
+        localStorage.setItem('aero_history', JSON.stringify(list));
+    } catch (e) {
+        // Quota exceeded — clear history and retry with just this item
+        try {
+            localStorage.removeItem('aero_history');
+            const slim = {
+                filename: item.filename,
+                timestamp: item.timestamp,
+                total_objects: item.total_objects,
+                defect_count: item.defect_count,
+                severity_counts: item.severity_counts,
+                detections: item.detections,
+                output_image: `./static/samples/${item.filename}`
+            };
+            localStorage.setItem('aero_history', JSON.stringify([slim]));
+        } catch (e2) { /* silent fail */ }
+    }
 }
 
 function loadHistory() {
