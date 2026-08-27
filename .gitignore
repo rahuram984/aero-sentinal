@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Local Uploads & Historical Outputs
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/uploads/live_watch/*
+!backend/uploads/live_watch/.gitkeep
+backend/static/output_20260827_*
+
+# OS Specific
+desktop.ini
+.DS_Store
+Thumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+
+# Scratch & Logs
+scratch/
+*.log
